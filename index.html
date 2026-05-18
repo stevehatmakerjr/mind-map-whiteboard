@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mind Map Whiteboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div id="app">
+    <div id="toolbar">
+      <button class="tb-btn" id="btn-add">+ Add node</button>
+      <button class="tb-btn" id="btn-connect">&#9741; Connect</button>
+      <button class="tb-btn" id="btn-delete">&#128465; Delete</button>
+      <div class="tb-sep"></div>
+      <span class="tb-label">Color:</span>
+      <div class="color-dot selected" data-color="purple" style="background:#EEEDFE;border-color:#7F77DD;" title="Purple"></div>
+      <div class="color-dot" data-color="teal"   style="background:#E1F5EE;border-color:#1D9E75;" title="Teal"></div>
+      <div class="color-dot" data-color="coral"  style="background:#FAECE7;border-color:#D85A30;" title="Coral"></div>
+      <div class="color-dot" data-color="amber"  style="background:#FAEEDA;border-color:#BA7517;" title="Amber"></div>
+      <div class="color-dot" data-color="blue"   style="background:#E6F1FB;border-color:#378ADD;" title="Blue"></div>
+      <div class="color-dot" data-color="pink"   style="background:#FBEAF0;border-color:#D4537E;" title="Pink"></div>
+      <div class="color-dot" data-color="gray"   style="background:#F1EFE8;border-color:#888780;" title="Gray"></div>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" id="btn-zin">&#43; Zoom in</button>
+      <button class="tb-btn" id="btn-zout">&#8722; Zoom out</button>
+      <button class="tb-btn" id="btn-fit">&#8689; Fit all</button>
+      <button class="tb-btn danger" id="btn-clear">Clear all</button>
+    </div>
+
+    <div id="canvas-wrap">
+      <canvas id="grid-canvas"></canvas>
+      <canvas id="main-canvas"></canvas>
+      <div id="interact"></div>
+      <div id="status">Scroll to zoom &nbsp;·&nbsp; Drag canvas to pan &nbsp;·&nbsp; Double-click canvas to add node</div>
+      <div id="conn-hint"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
