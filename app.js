@@ -147,8 +147,83 @@ function updateAllPositions() {
   drawEdges();
 }
 
+// ── Fit all nodes into view ─────────────────────────────────────
+function fitAll() {
+  if (!nodes.length) { scale = 1; ox = 0; oy = 0; updateAllPositions(); return; }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  nodes.forEach(n => {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + 160);
+    maxY = Math.max(maxY, n.y + 60);
+  });
+  const pw = wrap.clientWidth  - 80;
+  const ph = wrap.clientHeight - 80;
+  scale = Math.min(pw / (maxX - minX), ph / (maxY - minY), 1.5);
+  ox    = (wrap.clientWidth  - (maxX - minX) * scale) / 2 - minX * scale;
+  oy    = (wrap.clientHeight - (maxY - minY) * scale) / 2 - minY * scale;
+  updateAllPositions();
+}
+
+// ── Persistence ─────────────────────────────────────────────────
+const STORAGE_KEY = 'mindmap_board';
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes, edges, nextId }));
+}
+
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return false;
+  try {
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) return false;
+    nodes  = data.nodes;
+    edges  = data.edges;
+    nextId = data.nextId ?? (Math.max(0, ...data.nodes.map(n => n.id)) + 1);
+    nodes.forEach(n => createNodeEl(n));
+    drawEdges();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function exportBoard() {
+  const blob = new Blob([JSON.stringify({ nodes, edges }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mindmap.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importBoard(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+        alert('Invalid file format.');
+        return;
+      }
+      nodes  = data.nodes;
+      edges  = data.edges;
+      nextId = Math.max(0, ...nodes.map(n => n.id)) + 1;
+      interact.innerHTML = '';
+      nodes.forEach(n => createNodeEl(n));
+      drawEdges();
+      fitAll();
+      saveState();
+    } catch {
+      alert('Could not read file.');
+    }
+  };
+  reader.readAsText(file);
+}
+
 // ── Create a node DOM element ───────────────────────────────────
-function createNodeEl(n) {
+function createNodeEl(n, autofocus = false) {
   const c  = COLORS[n.color] || COLORS.purple;
   const el = document.createElement('div');
   el.className      = 'node-el';
@@ -178,6 +253,7 @@ function createNodeEl(n) {
     ta.style.height = 'auto';
     ta.style.height = ta.scrollHeight + 'px';
     setTimeout(() => { positionNode(n); drawEdges(); }, 0);
+    saveState();
   });
   ta.addEventListener('mousedown', e => e.stopPropagation());
   ta.addEventListener('focus', () => selectNode(n.id));
@@ -198,7 +274,7 @@ function createNodeEl(n) {
           (e2.from === connectFrom && e2.to === n.id) ||
           (e2.from === n.id && e2.to === connectFrom)
         );
-        if (!exists) edges.push({ from: connectFrom, to: n.id });
+        if (!exists) { edges.push({ from: connectFrom, to: n.id }); saveState(); }
         const fromEl = document.getElementById('n' + connectFrom);
         if (fromEl) fromEl.style.outline = '';
         connectFrom = null;
@@ -220,16 +296,17 @@ function createNodeEl(n) {
   interact.appendChild(el);
   positionNode(n);
 
-  setTimeout(() => { ta.focus(); ta.select(); }, 50);
+  if (autofocus) setTimeout(() => { ta.focus(); ta.select(); }, 50);
 }
 
 // ── Add a new node ──────────────────────────────────────────────
 function addNode(wx, wy, label = 'New idea') {
   const n = { id: nextId++, x: wx, y: wy, label, color: selectedColor };
   nodes.push(n);
-  createNodeEl(n);
+  createNodeEl(n, true);
   selectNode(n.id);
   drawEdges();
+  saveState();
 }
 
 // ── Select / deselect ───────────────────────────────────────────
@@ -250,6 +327,7 @@ function deleteNode(id) {
   if (el) el.remove();
   if (selectedNode === id) selectedNode = null;
   drawEdges();
+  saveState();
 }
 
 // ── Canvas interactions ─────────────────────────────────────────
@@ -301,6 +379,7 @@ window.addEventListener('mousemove', e => {
 });
 
 window.addEventListener('mouseup', () => {
+  if (draggingNode !== null) saveState();
   isDraggingCanvas = false;
   draggingNode     = null;
   dragNodeStart    = null;
@@ -350,24 +429,7 @@ document.getElementById('btn-zout').addEventListener('click', () => {
   updateAllPositions();
 });
 
-document.getElementById('btn-fit').addEventListener('click', () => {
-  if (!nodes.length) { scale = 1; ox = 0; oy = 0; updateAllPositions(); return; }
-
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  nodes.forEach(n => {
-    minX = Math.min(minX, n.x);
-    minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x + 160);
-    maxY = Math.max(maxY, n.y + 60);
-  });
-
-  const pw = wrap.clientWidth  - 80;
-  const ph = wrap.clientHeight - 80;
-  scale = Math.min(pw / (maxX - minX), ph / (maxY - minY), 1.5);
-  ox    = (wrap.clientWidth  - (maxX - minX) * scale) / 2 - minX * scale;
-  oy    = (wrap.clientHeight - (maxY - minY) * scale) / 2 - minY * scale;
-  updateAllPositions();
-});
+document.getElementById('btn-fit').addEventListener('click', fitAll);
 
 document.getElementById('btn-clear').addEventListener('click', () => {
   if (!confirm('Clear the entire board?')) return;
@@ -375,6 +437,19 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   interact.innerHTML = '';
   drawEdges();
   drawGrid();
+  saveState();
+});
+
+document.getElementById('btn-export').addEventListener('click', exportBoard);
+
+document.getElementById('btn-import').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) importBoard(file);
+  e.target.value = '';
 });
 
 // ── Color picker ────────────────────────────────────────────────
@@ -396,6 +471,7 @@ document.querySelectorAll('.color-dot').forEach(dot => {
         el.style.color       = c.text;
         el.querySelector('textarea').style.color = c.text;
         drawEdges();
+        saveState();
       }
     }
   });
@@ -424,7 +500,10 @@ window.addEventListener('keydown', e => {
 new ResizeObserver(resize).observe(wrap);
 resize();
 
-// Start with one node in the center
-ox = wrap.clientWidth  / 2 - 100;
-oy = wrap.clientHeight / 2 - 30;
-addNode(0, 0, 'Main topic');
+if (!loadState()) {
+  ox = wrap.clientWidth  / 2 - 100;
+  oy = wrap.clientHeight / 2 - 30;
+  addNode(0, 0, 'Main topic');
+} else {
+  fitAll();
+}
