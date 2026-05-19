@@ -17,6 +17,8 @@ An infinite-canvas mind mapping tool built with pure HTML, CSS, and JavaScript. 
 - **Fit all** — auto-zoom to show every node at once
 - **Edit in place** — click any node's text to edit it directly
 - **Delete** — hover a node for the ✕ badge, or select and press Delete
+- **Auto-save** — board is saved to browser localStorage automatically on every change
+- **Export / Import** — download your board as a JSON file and reload it later
 - **Keyboard shortcuts** — see below
 - **Zero dependencies** — no npm, no framework, no internet connection required
 
@@ -75,6 +77,12 @@ mind-map-whiteboard/
 - Select a node and click **Delete** in the toolbar
 - Select a node and press `Delete` or `Backspace` on your keyboard
 
+### Saving and loading
+- Your board is **saved automatically** to your browser's localStorage after every change — no save button needed
+- The board is **restored automatically** when you reopen the page
+- Click **Export** to download your board as a `mindmap.json` file (useful for backups or sharing)
+- Click **Import** to load a previously exported `.json` file, replacing the current board
+
 ---
 
 ## Keyboard Shortcuts
@@ -103,7 +111,7 @@ mind-map-whiteboard/
 
 ## Roadmap / Ideas for Future Features
 
-- [ ] Save and load boards (localStorage or JSON export)
+- [x] Save and load boards (localStorage + JSON export/import)
 - [ ] Undo / redo
 - [ ] Delete individual connections
 - [ ] Label arrows with text
