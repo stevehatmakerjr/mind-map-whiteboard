@@ -9,6 +9,16 @@ const COLORS = {
   gray:   { bg: '#F1EFE8', border: '#888780', text: '#444441' },
 };
 
+const DARK_COLORS = {
+  purple: { bg: '#2D2A4A', border: '#7F77DD', text: '#C5C1FF' },
+  teal:   { bg: '#1A3028', border: '#1D9E75', text: '#5FDBA8' },
+  coral:  { bg: '#3D1F17', border: '#D85A30', text: '#FF9070' },
+  amber:  { bg: '#3A2810', border: '#BA7517', text: '#FFC060' },
+  blue:   { bg: '#152238', border: '#378ADD', text: '#7BBEFF' },
+  pink:   { bg: '#3D1B27', border: '#D4537E', text: '#FF8CAE' },
+  gray:   { bg: '#2A2A28', border: '#888780', text: '#C8C6BE' },
+};
+
 // ── State ───────────────────────────────────────────────────────
 let nodes         = [];
 let edges         = [];
@@ -24,6 +34,9 @@ let dragStart        = null;
 let draggingNode     = null;
 let dragNodeStart    = null;
 let nextId           = 1;
+let undoStack        = [];
+let redoStack        = [];
+let darkMode         = false;
 
 // ── DOM refs ────────────────────────────────────────────────────
 const wrap     = document.getElementById('canvas-wrap');
@@ -53,7 +66,7 @@ function drawGrid() {
   const offX = ((ox % step) + step) % step;
   const offY = ((oy % step) + step) % step;
 
-  ctx.strokeStyle = 'rgba(128,128,128,0.13)';
+  ctx.strokeStyle = darkMode ? 'rgba(255,255,255,0.07)' : 'rgba(128,128,128,0.13)';
   ctx.lineWidth   = 0.5;
 
   for (let x = offX; x < w; x += step) {
@@ -207,6 +220,7 @@ function importBoard(file) {
         alert('Invalid file format.');
         return;
       }
+      pushHistory();
       nodes  = data.nodes;
       edges  = data.edges;
       nextId = Math.max(0, ...nodes.map(n => n.id)) + 1;
@@ -222,9 +236,73 @@ function importBoard(file) {
   reader.readAsText(file);
 }
 
+// ── Undo / Redo ─────────────────────────────────────────────────
+const MAX_HISTORY = 50;
+
+function snapshot() {
+  return { nodes: JSON.parse(JSON.stringify(nodes)), edges: JSON.parse(JSON.stringify(edges)), nextId };
+}
+
+function pushHistory() {
+  undoStack.push(snapshot());
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack = [];
+  updateUndoButtons();
+}
+
+function restoreSnapshot(snap) {
+  nodes        = snap.nodes;
+  edges        = snap.edges;
+  nextId       = snap.nextId;
+  selectedNode = null;
+  interact.innerHTML = '';
+  nodes.forEach(n => createNodeEl(n));
+  drawEdges();
+  saveState();
+  updateUndoButtons();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(snapshot());
+  restoreSnapshot(undoStack.pop());
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(snapshot());
+  restoreSnapshot(redoStack.pop());
+}
+
+function updateUndoButtons() {
+  document.getElementById('btn-undo').disabled = undoStack.length === 0;
+  document.getElementById('btn-redo').disabled = redoStack.length === 0;
+}
+
+// ── Dark mode ────────────────────────────────────────────────────
+function applyDarkMode(isDark) {
+  darkMode = isDark;
+  document.body.classList.toggle('dark', isDark);
+  document.getElementById('btn-dark').textContent = isDark ? '☀ Light' : '☽ Dark';
+  const palette = isDark ? DARK_COLORS : COLORS;
+  nodes.forEach(n => {
+    const el = document.getElementById('n' + n.id);
+    if (!el) return;
+    const c = palette[n.color] || palette.purple;
+    el.style.background  = c.bg;
+    el.style.borderColor = c.border;
+    el.style.color       = c.text;
+    el.querySelector('textarea').style.color = c.text;
+  });
+  drawGrid();
+  drawEdges();
+  localStorage.setItem('mindmap_darkmode', isDark ? '1' : '0');
+}
+
 // ── Create a node DOM element ───────────────────────────────────
 function createNodeEl(n, autofocus = false) {
-  const c  = COLORS[n.color] || COLORS.purple;
+  const palette = darkMode ? DARK_COLORS : COLORS;
+  const c = palette[n.color] || palette.purple;
   const el = document.createElement('div');
   el.className      = 'node-el';
   el.id             = 'n' + n.id;
@@ -274,7 +352,7 @@ function createNodeEl(n, autofocus = false) {
           (e2.from === connectFrom && e2.to === n.id) ||
           (e2.from === n.id && e2.to === connectFrom)
         );
-        if (!exists) { edges.push({ from: connectFrom, to: n.id }); saveState(); }
+        if (!exists) { pushHistory(); edges.push({ from: connectFrom, to: n.id }); saveState(); }
         const fromEl = document.getElementById('n' + connectFrom);
         if (fromEl) fromEl.style.outline = '';
         connectFrom = null;
@@ -285,6 +363,7 @@ function createNodeEl(n, autofocus = false) {
     }
 
     // Drag mode
+    pushHistory();
     selectNode(n.id);
     draggingNode = n.id;
     const r  = wrap.getBoundingClientRect();
@@ -301,6 +380,7 @@ function createNodeEl(n, autofocus = false) {
 
 // ── Add a new node ──────────────────────────────────────────────
 function addNode(wx, wy, label = 'New idea') {
+  pushHistory();
   const n = { id: nextId++, x: wx, y: wy, label, color: selectedColor };
   nodes.push(n);
   createNodeEl(n, true);
@@ -321,6 +401,7 @@ function selectNode(id) {
 
 // ── Delete a node and its edges ─────────────────────────────────
 function deleteNode(id) {
+  pushHistory();
   nodes = nodes.filter(n => n.id !== id);
   edges = edges.filter(e => e.from !== id && e.to !== id);
   const el = document.getElementById('n' + id);
@@ -433,12 +514,17 @@ document.getElementById('btn-fit').addEventListener('click', fitAll);
 
 document.getElementById('btn-clear').addEventListener('click', () => {
   if (!confirm('Clear the entire board?')) return;
+  pushHistory();
   nodes = []; edges = []; selectedNode = null; connectFrom = null;
   interact.innerHTML = '';
   drawEdges();
   drawGrid();
   saveState();
 });
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
+document.getElementById('btn-dark').addEventListener('click', () => applyDarkMode(!darkMode));
 
 document.getElementById('btn-export').addEventListener('click', exportBoard);
 
@@ -463,9 +549,10 @@ document.querySelectorAll('.color-dot').forEach(dot => {
     if (selectedNode !== null) {
       const n = nodes.find(n => n.id === selectedNode);
       if (n) {
+        pushHistory();
         n.color = selectedColor;
         const el = document.getElementById('n' + n.id);
-        const c  = COLORS[selectedColor];
+        const c = (darkMode ? DARK_COLORS : COLORS)[selectedColor];
         el.style.background  = c.bg;
         el.style.borderColor = c.border;
         el.style.color       = c.text;
@@ -485,6 +572,16 @@ window.addEventListener('keydown', e => {
     deleteNode(selectedNode);
   }
 
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z' && !isTyping) {
+    e.preventDefault();
+    undo();
+  }
+
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z')) && !isTyping) {
+    e.preventDefault();
+    redo();
+  }
+
   if (e.key === 'Escape') {
     selectNode(null);
     connectMode  = false;
@@ -500,6 +597,8 @@ window.addEventListener('keydown', e => {
 new ResizeObserver(resize).observe(wrap);
 resize();
 
+if (localStorage.getItem('mindmap_darkmode') === '1') applyDarkMode(true);
+
 if (!loadState()) {
   ox = wrap.clientWidth  / 2 - 100;
   oy = wrap.clientHeight / 2 - 30;
@@ -507,3 +606,4 @@ if (!loadState()) {
 } else {
   fitAll();
 }
+updateUndoButtons();
