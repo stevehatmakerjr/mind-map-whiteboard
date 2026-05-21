@@ -17,6 +17,8 @@ An infinite-canvas mind mapping tool built with pure HTML, CSS, and JavaScript. 
 - **Fit all** — auto-zoom to show every node at once
 - **Edit in place** — click any node's text to edit it directly
 - **Delete** — hover a node for the ✕ badge, or select and press Delete
+- **Undo / Redo** — step back and forward through structural changes (Ctrl+Z / Ctrl+Y)
+- **Dark mode** — toggle between light and dark themes; preference is remembered
 - **Auto-save** — board is saved to browser localStorage automatically on every change
 - **Export / Import** — download your board as a JSON file and reload it later
 - **Keyboard shortcuts** — see below
@@ -90,6 +92,8 @@ mind-map-whiteboard/
 | Key | Action |
 |-----|--------|
 | `Delete` / `Backspace` | Delete the selected node |
+| `Ctrl+Z` | Undo last action |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
 | `Escape` | Deselect / exit connect mode |
 | Double-click canvas | Add a new node at that position |
 
@@ -112,11 +116,11 @@ mind-map-whiteboard/
 ## Roadmap / Ideas for Future Features
 
 - [x] Save and load boards (localStorage + JSON export/import)
-- [ ] Undo / redo
+- [x] Undo / redo
+- [x] Dark mode toggle
 - [ ] Delete individual connections
 - [ ] Label arrows with text
 - [ ] Mobile / touch support
-- [ ] Dark mode toggle
 - [ ] Export as PNG or SVG
 
 ---
