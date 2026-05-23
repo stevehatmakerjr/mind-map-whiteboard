@@ -37,6 +37,7 @@ let nextId           = 1;
 let undoStack        = [];
 let redoStack        = [];
 let darkMode         = false;
+let hoveredEdge      = null;
 
 // ── DOM refs ────────────────────────────────────────────────────
 const wrap     = document.getElementById('canvas-wrap');
@@ -95,12 +96,37 @@ function getNodeCenter(n) {
   };
 }
 
+// ── Edge hit-testing ────────────────────────────────────────────
+function getEdgeAt(px, py) {
+  const THRESHOLD = 8;
+  for (let i = edges.length - 1; i >= 0; i--) {
+    const e = edges[i];
+    const a = nodes.find(n => n.id === e.from);
+    const b = nodes.find(n => n.id === e.to);
+    if (!a || !b) continue;
+    const ca = getNodeCenter(a);
+    const cb = getNodeCenter(b);
+    const sx = ca.x * scale + ox, sy = ca.y * scale + oy;
+    const ex = cb.x * scale + ox, ey = cb.y * scale + oy;
+    const mx = (sx + ex) / 2;
+    const cp1x = sx + (mx - sx) * 0.5, cp1y = sy;
+    const cp2x = ex + (mx - ex) * 0.5, cp2y = ey;
+    for (let t = 0; t <= 1; t += 0.05) {
+      const u = 1 - t;
+      const bx = u*u*u*sx + 3*u*u*t*cp1x + 3*u*t*t*cp2x + t*t*t*ex;
+      const by = u*u*u*sy + 3*u*u*t*cp1y + 3*u*t*t*cp2y + t*t*t*ey;
+      if (Math.hypot(bx - px, by - py) <= THRESHOLD) return i;
+    }
+  }
+  return null;
+}
+
 // ── Draw edges (curved bezier arrows) ──────────────────────────
 function drawEdges() {
   const ctx = mainCvs.getContext('2d');
   ctx.clearRect(0, 0, mainCvs.width, mainCvs.height);
 
-  edges.forEach(e => {
+  edges.forEach((e, i) => {
     const a = nodes.find(n => n.id === e.from);
     const b = nodes.find(n => n.id === e.to);
     if (!a || !b) return;
@@ -112,9 +138,10 @@ function drawEdges() {
     const ex = cb.x * scale + ox;
     const ey = cb.y * scale + oy;
 
-    const col = COLORS[a.color]?.border || '#999';
-    const mx  = (sx + ex) / 2;
-    const my  = (sy + ey) / 2;
+    const col      = COLORS[a.color]?.border || '#999';
+    const mx       = (sx + ex) / 2;
+    const my       = (sy + ey) / 2;
+    const isHovered = i === hoveredEdge;
 
     // Curved line
     ctx.beginPath();
@@ -125,8 +152,8 @@ function drawEdges() {
       ex, ey
     );
     ctx.strokeStyle   = col;
-    ctx.lineWidth     = 2;
-    ctx.globalAlpha   = 0.6;
+    ctx.lineWidth     = isHovered ? 3.5 : 2;
+    ctx.globalAlpha   = isHovered ? 0.95 : 0.6;
     ctx.stroke();
 
     // Arrowhead
@@ -137,7 +164,7 @@ function drawEdges() {
     ctx.lineTo(ex - 10 * Math.cos(angle + 0.4), ey - 10 * Math.sin(angle + 0.4));
     ctx.closePath();
     ctx.fillStyle   = col;
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = isHovered ? 1.0 : 0.7;
     ctx.fill();
     ctx.globalAlpha = 1;
   });
@@ -421,13 +448,25 @@ interact.addEventListener('dblclick', e => {
   addNode(wp.x - 60, wp.y - 20);
 });
 
-// Mousedown on empty canvas → start pan OR deselect
+// Mousedown on empty canvas → delete edge, start pan, or deselect
 interact.addEventListener('mousedown', e => {
   if (e.target !== interact) return;
 
   if (connectMode) {
     connectFrom = null;
     connHint.textContent = 'Click source node to start a connection';
+    return;
+  }
+
+  // Click on a connection to delete it
+  const r = wrap.getBoundingClientRect();
+  const edgeIdx = getEdgeAt(e.clientX - r.left, e.clientY - r.top);
+  if (edgeIdx !== null) {
+    pushHistory();
+    edges.splice(edgeIdx, 1);
+    hoveredEdge = null;
+    drawEdges();
+    saveState();
     return;
   }
 
@@ -457,6 +496,17 @@ window.addEventListener('mousemove', e => {
       drawEdges();
     }
   }
+
+  // Edge hover
+  if (!isDraggingCanvas && draggingNode === null && !connectMode) {
+    const r = wrap.getBoundingClientRect();
+    const newHovered = getEdgeAt(e.clientX - r.left, e.clientY - r.top);
+    if (newHovered !== hoveredEdge) {
+      hoveredEdge = newHovered;
+      interact.style.cursor = hoveredEdge !== null ? 'pointer' : 'default';
+      drawEdges();
+    }
+  }
 });
 
 window.addEventListener('mouseup', () => {
@@ -464,7 +514,7 @@ window.addEventListener('mouseup', () => {
   isDraggingCanvas = false;
   draggingNode     = null;
   dragNodeStart    = null;
-  interact.style.cursor = connectMode ? 'crosshair' : 'default';
+  interact.style.cursor = connectMode ? 'crosshair' : hoveredEdge !== null ? 'pointer' : 'default';
 });
 
 // Scroll to zoom
@@ -491,9 +541,11 @@ document.getElementById('btn-add').addEventListener('click', () => {
 document.getElementById('btn-connect').addEventListener('click', () => {
   connectMode  = !connectMode;
   connectFrom  = null;
+  hoveredEdge  = null;
   document.getElementById('btn-connect').classList.toggle('active', connectMode);
   interact.style.cursor = connectMode ? 'crosshair' : 'default';
   connHint.textContent  = connectMode ? 'Click source node to start a connection' : '';
+  drawEdges();
 });
 
 document.getElementById('btn-delete').addEventListener('click', () => {
@@ -586,10 +638,12 @@ window.addEventListener('keydown', e => {
     selectNode(null);
     connectMode  = false;
     connectFrom  = null;
+    hoveredEdge  = null;
     document.getElementById('btn-connect').classList.remove('active');
     interact.style.cursor = 'default';
     connHint.textContent  = '';
     document.querySelectorAll('.node-el').forEach(el => el.style.outline = '');
+    drawEdges();
   }
 });
 
