@@ -12,6 +12,7 @@ An infinite-canvas mind mapping tool built with pure HTML, CSS, and JavaScript. 
 - **Add nodes** — click the toolbar button or double-click anywhere on the canvas
 - **Drag nodes** — reposition any node by dragging it
 - **Connect nodes** — draw curved bezier arrows between nodes to show relationships
+- **Delete connections** — hover any arrow to highlight it, then click to remove it
 - **Color coding** — 7 color themes to categorize your ideas
 - **Zoom** — scroll wheel or toolbar buttons to zoom in and out
 - **Fit all** — auto-zoom to show every node at once
@@ -118,7 +119,7 @@ mind-map-whiteboard/
 - [x] Save and load boards (localStorage + JSON export/import)
 - [x] Undo / redo
 - [x] Dark mode toggle
-- [ ] Delete individual connections
+- [x] Delete individual connections
 - [ ] Label arrows with text
 - [ ] Mobile / touch support
 - [ ] Export as PNG or SVG
